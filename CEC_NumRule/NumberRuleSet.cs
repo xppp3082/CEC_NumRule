@@ -28,63 +28,6 @@ namespace CEC_NumRule
             Autodesk.Revit.DB.View activeView = doc.ActiveView;
             method m = new method();
 
-            ////抓到管類型進行設定
-            //List<customSystem> pipeSystemLst = new List<customSystem>();
-            ////FilteredElementCollector pipeSystemCollector
-            //List<Element> pipeSystemCollector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipingSystem).WhereElementIsElementType().OrderBy(x=>x.Name).ToList();
-            //MessageBox.Show(pipeSystemCollector.Count().ToString());
-            //foreach(Element e in pipeSystemCollector)
-            //{
-            //    customSystem tempSystem = new customSystem()
-            //    {
-            //        systemType = e,
-            //        systemName = e.Name,
-            //        targetSystemName=""//改成先從entity抓
-            //    };
-            //    pipeSystemLst.Add(tempSystem);
-            //}
-            ////抓到風管類型進行設定
-            //List<customSystem> ductSystemLst = new List<customSystem>();
-            //List<Element> ductSystemCollector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_DuctSystem).WhereElementIsElementType().OrderBy(x => x.Name).ToList();
-            //foreach(Element e in ductSystemCollector)
-            //{
-            //    customSystem tempSystem = new customSystem()
-            //    {
-            //        systemType = e,
-            //        systemName = e.Name,
-            //        targetSystemName = ""//改成先從entity抓
-            //    };
-            //    ductSystemLst.Add(tempSystem);
-            //}
-            ////抓到電管類型進行設定
-            //List<customSystem> conduitTypeLst = new List<customSystem>();
-            //List<Element> conduitSystemCollector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Conduit).WhereElementIsElementType().OrderBy(x => x.Name).ToList();
-            //foreach (Element e in conduitSystemCollector)
-            //{
-            //    customSystem tempSystem = new customSystem()
-            //    {
-            //        systemType = e,
-            //        systemName = e.Name,
-            //        targetSystemName = ""//改成先從entity抓
-            //    };
-            //    conduitTypeLst.Add(tempSystem);
-            //}
-            ////抓到電纜架類型進行設定
-            //List<customSystem> cableTrayLst = new List<customSystem>();
-            //List<Element> cableTrayCollector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_CableTray).WhereElementIsElementType().OrderBy(x => x.Name).ToList();
-            //foreach (Element e in conduitSystemCollector)
-            //{
-            //    customSystem tempSystem = new customSystem()
-            //    {
-            //        systemType = e,
-            //        systemName = e.Name,
-            //        targetSystemName = ""//改成先從entity抓
-            //    };
-            //    cableTrayLst.Add(tempSystem);
-            //}
-            
-            
-
             RuleSetting ruleUI = new RuleSetting(doc);
             ruleUI.pipeGrid.ItemsSource = m.GetCustomSystems(doc,BuiltInCategory.OST_PipingSystem);
             ruleUI.ductGrid.ItemsSource = m.GetCustomSystems(doc, BuiltInCategory.OST_DuctSystem);

@@ -25,6 +25,7 @@ namespace CEC_NumRule
             BuiltInCategory.OST_DuctCurves,
             BuiltInCategory.OST_CableTray
             };
+        public string paraName = "系統別_映射";
         private LogicalOrFilter createOrFilter(BuiltInCategory[] builts)
         {
             List<ElementFilter> filters = new List<ElementFilter>();
@@ -108,10 +109,15 @@ namespace CEC_NumRule
             }
             return targetList;
         }
-        public List<Element>getTargetElement(Document doc , string trigger)
+        public List<Element> getTargetElement(Document doc, string trigger, Autodesk.Revit.DB.View activeView)
         {
             List<Element> targetList = new List<Element>();
-            FilteredElementCollector collector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(FamilyInstance)).WhereElementIsNotElementType();
+            if (activeView.ViewType != ViewType.FloorPlan) MessageBox.Show("請在平面視圖使用此功能");
+            ViewPlan viewPlan = activeView as ViewPlan;
+            Level genLevel = viewPlan.GenLevel;
+            ElementLevelFilter levelFilter = new ElementLevelFilter(genLevel.Id);
+
+            FilteredElementCollector collector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(FamilyInstance)).WherePasses(levelFilter).WhereElementIsNotElementType();
             foreach (Element e in collector)
             {
                 FamilySymbol symbol = doc.GetElement(e.GetTypeId()) as FamilySymbol;
@@ -145,27 +151,32 @@ namespace CEC_NumRule
             Dictionary<ElementId, List<Element>> targetDict = new Dictionary<ElementId, List<Element>>();
             List<RevitLinkInstance> MEPlinkInstes = getMEPLinkInstance(doc);
             //先蒐集本機管
-            foreach (Element e in castList)
+            using (ProgressUI progerssUI = new ProgressUI(castList.Count()))
             {
-                List<Element> targetList = collectPipesByCast(doc, e);
-                targetDict.Add(e.Id, targetList);
-            }
-            //蒐集外參管
-            foreach (RevitLinkInstance linkInst in MEPlinkInstes)
-            {
+                //蒐集外參管
                 foreach (Element e in castList)
                 {
-                    List<Element> tagetList = collectPipesByCast(linkInst, e);
-                    if (targetDict.Keys.Contains(e.Id))
+                    List<Element> targetList = collectPipesByCast(doc, e);
+                    if (targetList.Count() != 0)
                     {
-                        targetDict[e.Id].AddRange(tagetList);
+                        targetDict.Add(e.Id, targetList);
                     }
-                    else
+                    foreach (RevitLinkInstance linkInst in MEPlinkInstes)
                     {
-                        targetDict.Add(e.Id, tagetList);
+                        List<Element> linktList = collectPipesByCast(linkInst, e);
+                        if (targetDict.Keys.Contains(e.Id) && linktList.Count() != 0)
+                        {
+                            targetDict[e.Id].AddRange(linktList);
+                        }
+                        else if (!targetDict.Keys.Contains(e.Id) && linktList.Count() != 0)
+                        {
+                            targetDict.Add(e.Id, linktList);
+                        }
                     }
+                    if (progerssUI.Update()) break;
                 }
             }
+
             return targetDict;
         }
         private List<Element> collectPipesByCast(Document doc, Element cast)
@@ -332,51 +343,126 @@ namespace CEC_NumRule
         public void reUpdateCastSystem(Dictionary<ElementId, List<Element>> castDict, Document doc)
         {
             Schema schema = Schema.Lookup(openingRuleScheme.civilSystemSchemaGUID);
-            foreach (ElementId id in castDict.Keys)
+            using (ProgressUI progerssUI = new ProgressUI(castDict.Keys.Count()))
             {
-                string errorOut = "";
-                List<string> systemList = new List<string>();
-                foreach (Element e in castDict[id])
+                foreach (ElementId id in castDict.Keys)
                 {
-                    Element ele = getEntityElement(e);
-                    Entity entity = ele.GetEntity(schema);
-
-                    if (entity.IsValid())
+                    string errorOut = "";
+                    List<string> systemList = new List<string>();
+                    foreach (Element e in castDict[id])
                     {
-                        string targetName = openingRuleScheme.retrieveDataFromElement(schema, ele);
-                        if (!systemList.Contains(targetName))
+                        Element ele = getEntityElement(e);
+                        Entity entity = ele.GetEntity(schema);
+
+                        if (entity.IsValid())
                         {
-                            systemList.Add(targetName);
+                            string targetName = openingRuleScheme.retrieveDataFromElement(schema, ele);
+                            if (!systemList.Contains(targetName))
+                            {
+                                systemList.Add(targetName);
+                            }
                         }
                     }
-                }
-                FilteredElementCollector coll = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeCurves).WhereElementIsNotElementType();
-                string paraName = "系統別_映射";
-                Element castToSet = doc.GetElement(id);
-                //MessageBox.Show(errorOut);
-                if (!checkPara(castToSet, paraName))
-                {
-                    FamilyInstance instance = castToSet as FamilyInstance;
-                    FamilySymbol symbol = instance.Symbol;
-                    MessageBox.Show($"請確認 {symbol.Name} 中使否存在 {paraName} 參數");
-                    break;
-                }
-                else
-                {
-                    Parameter para = castToSet.LookupParameter(paraName);
-                    if (systemList.Count == 1)
+                    FilteredElementCollector coll = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeCurves).WhereElementIsNotElementType();
+                    string paraName = "系統別_映射";
+                    string paraCheck = "不更新系統別";
+                    Element castToSet = doc.GetElement(id);
+                    //MessageBox.Show(errorOut);
+                    if (!checkPara(castToSet, paraCheck))
                     {
-                        para.Set(systemList.First());
+                        FamilyInstance instance = castToSet as FamilyInstance;
+                        FamilySymbol symbol = instance.Symbol;
+                        MessageBox.Show($"請確認 {symbol.Name} 中使否存在 {paraCheck} 參數");
+                        break;
                     }
-                    else
+                    if (!checkPara(castToSet, paraName))
                     {
-                        ////para.Set(systemList.First());
-                        //para.Set(systemList.Count.ToString());
-                        para.Set("未知");
+                        FamilyInstance instance = castToSet as FamilyInstance;
+                        FamilySymbol symbol = instance.Symbol;
+                        MessageBox.Show($"請確認 {symbol.Name} 中使否存在 {paraName} 參數");
+                        break;
                     }
+                    else if (castToSet.LookupParameter(paraCheck).AsInteger() == 0)
+                    {
+                        Parameter para = castToSet.LookupParameter(paraName);
+                        if (systemList.Count == 1)
+                        {
+                            para.Set(systemList.First());
+                        }
+                        else if (systemList.Count > 1)
+                        {
+                            string result = "";
+                            foreach (string st in systemList)
+                            {
+                                result += $"{st},";
+                            }
+                            char[] charsToTrim = { ',', '.', ' ' };
+                            result = result.TrimEnd(charsToTrim);
+                            para.Set(result);
+                        }
+                        else
+                        {
+                            para.Set("未知");
+                        }
+                    }
+                    if (progerssUI.Update()) break;
                 }
             }
         }
+
+        public void reUpdateCastSystem(ElementId id, List<Element> elements, Document doc)
+        {
+            Schema schema = Schema.Lookup(openingRuleScheme.civilSystemSchemaGUID);
+            string errorOut = "";
+            List<string> systemList = new List<string>();
+            foreach (Element e in elements)
+            {
+                Element ele = getEntityElement(e);
+                Entity entity = ele.GetEntity(schema);
+                if (entity.IsValid())
+                {
+                    string targetName = openingRuleScheme.retrieveDataFromElement(schema, ele);
+                    if (!systemList.Contains(targetName))
+                    {
+                        systemList.Add(targetName);
+                    }
+                }
+            }
+            FilteredElementCollector coll = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeCurves).WhereElementIsNotElementType();
+            string paraName = "系統別_映射";
+            string paraCheck = "不更新系統別";
+            Element castToSet = doc.GetElement(id);
+            //MessageBox.Show(errorOut);
+            //if (!checkPara(castToSet, paraCheck))
+            //{
+            //    FamilyInstance instance = castToSet as FamilyInstance;
+            //    FamilySymbol symbol = instance.Symbol;
+            //    MessageBox.Show($"請確認 {symbol.Name} 中使否存在 {paraCheck} 參數");
+            //    break;
+            //}
+            //if (!checkPara(castToSet, paraName))
+            //{
+            //    FamilyInstance instance = castToSet as FamilyInstance;
+            //    FamilySymbol symbol = instance.Symbol;
+            //    MessageBox.Show($"請確認 {symbol.Name} 中使否存在 {paraName} 參數");
+            //    break;
+            //}
+            if (castToSet.LookupParameter(paraCheck).AsInteger() == 0)
+            {
+                Parameter para = castToSet.LookupParameter(paraName);
+                if (systemList.Count == 1)
+                {
+                    para.Set(systemList.First());
+                }
+                else
+                {
+                    ////para.Set(systemList.First());
+                    //para.Set(systemList.Count.ToString());
+                    para.Set("未知");
+                }
+            }
+        }
+
         public Element getEntityElement(Element element)
         {
             Category category = element.Category;
@@ -402,28 +488,81 @@ namespace CEC_NumRule
             }
             return targetElement;
         }
-        public List<linkObject> getLinkObjects(Document doc, BuiltInCategory builts)
+
+        private List<Element> findAllLevel(Document doc)
         {
+            List<Element> targetList = null;
+            FilteredElementCollector levelCollector = new FilteredElementCollector(doc);
+            ElementFilter level_Filter = new ElementCategoryFilter(BuiltInCategory.OST_Levels);
+            levelCollector.OfClass(typeof(Level))/*.WherePasses(level_Filter)*/.WhereElementIsNotElementType();
+            //MessageBox.Show(levelCollector.Count().ToString());
+            //foreach (Element e in levelCollector)
+            //{
+            //    MessageBox.Show($"{doc.Title}+{e.Name}");
+            //    Level level = e as Level;
+            //    if (level != null)
+            //    {
+            //        targetList.Add(level);
+            //    }
+            //}
+            //MessageBox.Show(targetList.Count.ToString());
+            //if (targetList == null) MessageBox.Show("...");
+            //MessageBox.Show(targetList.Count().ToString());
+            targetList = levelCollector.ToList();
+            return targetList;
+        }
+        public List<linkObject> getLinkObjects(Document doc, BuiltInCategory builts, Autodesk.Revit.DB.View activeView)
+        {
+            string outPut = "";
             List<linkObject> targetLinkObject = new List<linkObject>();
-            //List<RevitLinkInstance> targetLinkInstance = new List<RevitLinkInstance>();
+            ViewPlan viewPlan = activeView as ViewPlan;
+            Level genLevel = viewPlan.GenLevel;
             FilteredElementCollector linkCollector = new FilteredElementCollector(doc).OfClass(typeof(RevitLinkInstance));
             foreach (RevitLinkInstance linkInst in linkCollector)
             {
+                Level tempLevel = null;
                 Document linkDoc = linkInst.GetLinkDocument();
                 Transform transform = linkInst.GetTotalTransform();
+                List<Element> levelList = findAllLevel(linkDoc);
+
+                if (levelList != null || levelList.Count != 0)
+                {
+                    foreach (Element element in levelList)
+                    {
+                        outPut += $"我是來自{linkDoc.Title}專案的「{element.Name}」樓層";
+                        Level level = element as Level;
+                        //if (level == null) MessageBox.Show($"來自「{linkDoc.Title}」檔案中的{element.Name}無法轉型成樓層");
+                        if (level.Name == genLevel.Name || level.ProjectElevation == genLevel.ProjectElevation)
+                        {
+                            tempLevel = level;
+                            break;
+                        }
+                    }
+                }
+                if (tempLevel == null) MessageBox.Show("請確認視圖參考樓層的「名稱」與「高程」是否與外參模型一致");
+                //MessageBox.Show(tempLevel.Name);
+                ElementLevelFilter levelFilter = new ElementLevelFilter(tempLevel.Id);
                 if (linkDoc != null)
                 {
-                    FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts).WhereElementIsNotElementType();
+                    FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts).WherePasses(levelFilter).WhereElementIsNotElementType();
                     //if (coll.Count() > 0) targetLinkInstance.Add(linkInst);
                     foreach (Element e in coll)
                     {
                         linkObject newObject = new linkObject(linkDoc, e.Id, e, transform);
-                        newObject.centerPt = getCenterPoint(newObject);
+                        try
+                        {
+                            newObject.centerPt = getCenterPoint(newObject);
+                        }
+                        catch
+                        {
+                            MessageBox.Show($"{e.Category.Name}中的{e.Name}:{e.Id}無法取得中心點");
+                        }
+                        if (newObject.centerPt == null) continue;
                         targetLinkObject.Add(newObject);
                     }
                 }
             }
-            targetLinkObject.OrderBy(x => x.centerPt.Y).ThenBy(x => x.centerPt.X).ToList();
+            targetLinkObject = targetLinkObject.OrderBy(x => x.centerPt.X).ThenBy(x => x.centerPt.Y).ToList();
             return targetLinkObject;
         }
         private XYZ getCenterPoint(linkObject linkobject)
@@ -437,9 +576,12 @@ namespace CEC_NumRule
             if (linkobject.linkElement.Category.Id == wall.Id || linkobject.linkElement.Category.Id == beam.Id)
             {
                 LocationCurve locationCurve = linkobject.linkElement.Location as LocationCurve;
-                Curve curve = locationCurve.Curve;
-                curve = curve.CreateTransformed(trans);
-                centerPoint = curve.Evaluate(0.5, true);
+                if (locationCurve != null)
+                {
+                    Curve curve = locationCurve.Curve;
+                    curve = curve.CreateTransformed(trans);
+                    centerPoint = curve.Evaluate(0.5, true);
+                }
             }
             else if (linkobject.linkElement.Category.Id == slab.Id)
             {
@@ -457,45 +599,49 @@ namespace CEC_NumRule
             Element element = linkObject.linkElement;
             BoundingBoxXYZ boundingBox = element.get_BoundingBox(null);
             Solid elementSolid = singleSolidFromElement(element);
-            elementSolid = SolidUtils.CreateTransformed(elementSolid, linkTrans);
-            XYZ solidCenter = elementSolid.ComputeCentroid();
-            ElementIntersectsSolidFilter solidFilter = new ElementIntersectsSolidFilter(elementSolid);
-            Transform newTrans = Transform.Identity;
-            newTrans.Origin = solidCenter;
-            XYZ targetMaxPt = TransformPoint(boundingBox.Max,linkTrans);
-            XYZ targetMinPt = TransformPoint(boundingBox.Min,linkTrans);
-
-            //Outline outLine = new Outline(newTrans.OfPoint(boundingBox.Min), newTrans.OfPoint(boundingBox.Max));
-            Outline outLine = new Outline(targetMinPt, targetMaxPt);
-            //createSolidFromBBox(doc, targetMaxPt, targetMinPt);
-            //createSolidFromBBox(doc, newTrans.OfPoint(boundingBox.Max), newTrans.OfPoint(boundingBox.Min));
-            BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
-            Autodesk.Revit.DB.View activeView = doc.ActiveView;
-            ViewPlan activePlan = null;
-            if (activeView.ViewType == ViewType.FloorPlan)
-            {
-                activePlan = activeView as ViewPlan;
-            }
-            else
-            {
-                MessageBox.Show("請在平面視圖使用此功能");
-            }
-            Level referLevel = activePlan.GenLevel;
-            ElementLevelFilter levelFilter = new ElementLevelFilter(referLevel.Id);
-            FilteredElementCollector collector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(FamilyInstance)).WherePasses(levelFilter).WherePasses(boundingBoxIntersectsFilter).WherePasses(solidFilter);
             List<Element> targetList = new List<Element>();
-
-            foreach (Element e in collector)
+            if (elementSolid != null)
             {
-                FamilyInstance inst = e as FamilyInstance;
-                FamilySymbol symbol = inst.Symbol;
-                Parameter para = symbol.LookupParameter("API識別名稱");
-                if (para != null && para.AsString().Contains(trigger))
+                elementSolid = SolidUtils.CreateTransformed(elementSolid, linkTrans);
+                XYZ solidCenter = elementSolid.ComputeCentroid();
+                ElementIntersectsSolidFilter solidFilter = new ElementIntersectsSolidFilter(elementSolid);
+                Transform newTrans = Transform.Identity;
+                newTrans.Origin = solidCenter;
+                XYZ targetMaxPt = TransformPoint(boundingBox.Max, linkTrans);
+                XYZ targetMinPt = TransformPoint(boundingBox.Min, linkTrans);
+
+                //Outline outLine = new Outline(newTrans.OfPoint(boundingBox.Min), newTrans.OfPoint(boundingBox.Max));
+                Outline outLine = new Outline(targetMinPt, targetMaxPt);
+                //createSolidFromBBox(doc, targetMaxPt, targetMinPt);
+                //createSolidFromBBox(doc, newTrans.OfPoint(boundingBox.Max), newTrans.OfPoint(boundingBox.Min));
+                BoundingBoxIntersectsFilter boundingBoxIntersectsFilter = new BoundingBoxIntersectsFilter(outLine);
+                Autodesk.Revit.DB.View activeView = doc.ActiveView;
+                ViewPlan activePlan = null;
+                if (activeView.ViewType == ViewType.FloorPlan)
                 {
-                    targetList.Add(e);
+                    activePlan = activeView as ViewPlan;
                 }
+                else
+                {
+                    MessageBox.Show("請在平面視圖使用此功能");
+                }
+                Level referLevel = activePlan.GenLevel;
+                ElementLevelFilter levelFilter = new ElementLevelFilter(referLevel.Id);
+                FilteredElementCollector collector = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_PipeAccessory).OfClass(typeof(FamilyInstance)).WherePasses(levelFilter).WherePasses(boundingBoxIntersectsFilter).WherePasses(solidFilter);
+
+
+                foreach (Element e in collector)
+                {
+                    FamilyInstance inst = e as FamilyInstance;
+                    FamilySymbol symbol = inst.Symbol;
+                    Parameter para = symbol.LookupParameter("API識別名稱");
+                    if (para != null && para.AsString().Contains(trigger))
+                    {
+                        targetList.Add(e);
+                    }
+                }
+                targetList = targetList/*.OrderBy(x=>x.LookupParameter(paraName).AsString())*/.OrderBy(x => getLocationPt(x).X).ThenBy(x => getLocationPt(x).Y).ToList();
             }
-            targetList =  targetList.OrderBy(x => getLocationPt(x).Y).ThenBy(x => getLocationPt(x).X).ToList();
             return targetList;
         }
         private XYZ TransformPoint(XYZ point, Transform transform)
@@ -528,7 +674,7 @@ namespace CEC_NumRule
             }
             return targetPoint;
         }
-        private void createSolidFromBBox(Document doc,XYZ maxPt, XYZ minPt)
+        private void createSolidFromBBox(Document doc, XYZ maxPt, XYZ minPt)
         {
             XYZ pt0 = new XYZ(minPt.X, minPt.Y, minPt.Z);
             XYZ pt1 = new XYZ(maxPt.X, minPt.Y, minPt.Z);

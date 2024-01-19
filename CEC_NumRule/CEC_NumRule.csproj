@@ -97,7 +97,11 @@
     </Compile>
     <Compile Include="method.cs" />
     <Compile Include="NumberRuleSet.cs" />
+    <Compile Include="ProgressUI.xaml.cs">
+      <DependentUpon>ProgressUI.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="reupdateOpeningNumber.cs" />
     <Compile Include="RuleSetting.xaml.cs">
       <DependentUpon>RuleSetting.xaml</DependentUpon>
     </Compile>
@@ -109,6 +113,10 @@
   </ItemGroup>
   <ItemGroup>
     <Page Include="copyUI.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ProgressUI.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
