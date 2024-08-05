@@ -540,28 +540,44 @@ namespace CEC_NumRule
                     }
                 }
                 if (tempLevel == null) MessageBox.Show("請確認視圖參考樓層的「名稱」與「高程」是否與外參模型一致");
+
                 //MessageBox.Show(tempLevel.Name);
                 ElementLevelFilter levelFilter = new ElementLevelFilter(tempLevel.Id);
                 if (linkDoc != null)
                 {
                     //2024.01.26修正，因牆底參考樓層有可能不一樣，避免用同一樓層作為干涉依據
                     FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts)/*.WherePasses(levelFilter)*/.WhereElementIsNotElementType();
+<<<<<<< HEAD
                     foreach (Element e in coll)
+=======
+                    if (coll.Count() != 0)
+>>>>>>> dd6e90b0f634ff10193ded25fb34c6d4574249b3
                     {
-                        linkObject newObject = new linkObject(linkDoc, e.Id, e, transform);
-                        try
+                        foreach (Element e in coll)
                         {
-                            newObject.centerPt = getCenterPoint(newObject);
+                            linkObject newObject = new linkObject(linkDoc, e.Id, e, transform);
+                            try
+                            {
+                                newObject.centerPt = getCenterPoint(newObject);
+                            }
+                            catch
+                            {
+                                MessageBox.Show($"{e.Category.Name}中的{e.Name}:{e.Id}無法取得中心點");
+                            }
+                            //if (newObject.centerPt == null)
+                            //{
+                            //    MessageBox.Show($"來自 {linkDoc.Title} 的 {newObject.linkID} 無法取得物件中心點");
+                            //    continue;
+                            //}
+                            if (newObject.centerPt != null)
+                            {
+                                targetLinkObject.Add(newObject);
+                            }
                         }
-                        catch
-                        {
-                            MessageBox.Show($"{e.Category.Name}中的{e.Name}:{e.Id}無法取得中心點");
-                        }
-                        if (newObject.centerPt == null) continue;
-                        targetLinkObject.Add(newObject);
                     }
                 }
             }
+            MessageBox.Show("測試");
             targetLinkObject = targetLinkObject.OrderBy(x => x.centerPt.X).ThenBy(x => x.centerPt.Y).ToList();
             return targetLinkObject;
         }

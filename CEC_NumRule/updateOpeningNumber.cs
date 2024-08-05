@@ -49,6 +49,7 @@ namespace CEC_NumRule
                     int num = 1;
                     string systemName = "";
                     List<linkObject> objects = m.getLinkObjects(doc, builts[i],doc.ActiveView);
+                    MessageBox.Show("YA");
                     List<Element> targetList = m.getTargetElement(doc, castTypes[i],doc.ActiveView); //依照類別取得開口
                     int existMaxNum = 0;//針對不同品類的開口尋找最大編號值
                     string numberPara = "開口編號";
