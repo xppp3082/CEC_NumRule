@@ -547,11 +547,7 @@ namespace CEC_NumRule
                 {
                     //2024.01.26修正，因牆底參考樓層有可能不一樣，避免用同一樓層作為干涉依據
                     FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts)/*.WherePasses(levelFilter)*/.WhereElementIsNotElementType();
-<<<<<<< HEAD
-                    foreach (Element e in coll)
-=======
                     if (coll.Count() != 0)
->>>>>>> dd6e90b0f634ff10193ded25fb34c6d4574249b3
                     {
                         foreach (Element e in coll)
                         {
