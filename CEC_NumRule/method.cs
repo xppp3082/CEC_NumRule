@@ -532,7 +532,7 @@ namespace CEC_NumRule
                         outPut += $"我是來自{linkDoc.Title}專案的「{element.Name}」樓層";
                         Level level = element as Level;
                         //if (level == null) MessageBox.Show($"來自「{linkDoc.Title}」檔案中的{element.Name}無法轉型成樓層");
-                        if (level.Name == genLevel.Name || level.ProjectElevation == genLevel.ProjectElevation)
+                        if (level.Name == genLevel.Name || level.ProjectElevation == genLevel.ProjectElevation || level.Elevation==genLevel.Elevation)
                         {
                             tempLevel = level;
                             break;
@@ -544,8 +544,8 @@ namespace CEC_NumRule
                 ElementLevelFilter levelFilter = new ElementLevelFilter(tempLevel.Id);
                 if (linkDoc != null)
                 {
-                    FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts).WherePasses(levelFilter).WhereElementIsNotElementType();
-                    //if (coll.Count() > 0) targetLinkInstance.Add(linkInst);
+                    //2024.01.26修正，因牆底參考樓層有可能不一樣，避免用同一樓層作為干涉依據
+                    FilteredElementCollector coll = new FilteredElementCollector(linkDoc).OfCategory(builts)/*.WherePasses(levelFilter)*/.WhereElementIsNotElementType();
                     foreach (Element e in coll)
                     {
                         linkObject newObject = new linkObject(linkDoc, e.Id, e, transform);
